@@ -1,11 +1,23 @@
 import tornado.ioloop
 import tornado.web
+from tornado.concurrent import return_future
 
 import sockjs.tornado
 from corduroy import Database, NotFound, relax
 
 import json
-import HTMLParser
+import ConfigParser, os
+
+from pynextcaller.client import NextCallerClient
+
+config = ConfigParser.ConfigParser()
+config.read(['callernotes.cfg', os.path.expanduser('~/.callernotes.cfg')])
+
+username = config.get('nextcaller', 'username')
+password = config.get('nextcaller', 'password')
+
+client = NextCallerClient(username, password, sandbox=False)
+
 
 db = Database('notes')
 participants = set()
@@ -59,32 +71,23 @@ class CallNewHandler(tornado.web.RequestHandler):
             self.write(message)
 
         # broadcast the new call information
-        nextcaller_info = {u'records': [{u'address': [{u'city': u'Austin',
-                             u'country': u'USA',
-                             u'extended_zip': u'1234',
-                             u'line1': u'123 Fake St',
-                             u'line2': u'',
-                             u'state': u'TX',
-                             u'zip_code': u'11111'}],
-               u'first_name': u'Caller',
-               u'first_pronounced': u'Call her',
-               u'id': u'3142jh14jksdf8789ag87',
-               u'last_name': u'Notes',
-               u'middle_name': u'',
-               u'name': u'Caller Notes',
-               u'phone': [{u'carrier': u'Stenius Mobile',
-                           u'line_type': u'Mobile',
-                           u'number': u'5551234567',
-                           u'resource_uri': u'/v2.1/records/5551234567/'}],
-               u'resource_uri': u'/v2.1/users/3142jh14jksdf8789ag87/'}]}
-
         try:
             doc = yield db.get(message["callerid"])
             notes = doc['notes']
+            if doc['nextcaller_api_info']:
+                nextcaller_info = doc['nextcaller_api_info']
+            else:
+                nextcaller_info = yield fetch_caller_info(message["callerid"])
+                doc['nextcaller_api_info'] = json.loads(self.request.body)
+                yield db.save(doc)
             revision = doc['_rev']
         except NotFound:
             notes = 'These are the default notes!'
-            revision = ''
+            nextcaller_info = yield fetch_caller_info(message["callerid"])
+            doc = {'_id': message["callerid"], 'notes': notes,
+                'nextcaller_api_info': nextcaller_info}
+            yield db.save(doc)
+            revision = doc['_rev']
 
         caller_info = {'nextcaller': nextcaller_info,
             'notes': notes,
@@ -112,12 +115,17 @@ class NotesUpdater(tornado.web.RequestHandler):
                 doc.notes = json.loads(self.request.body)
                 yield db.save(doc)
         except NotFound:
-            doc = {'_id': data["callerid"], 'notes': self.request.body}
+            doc = {'_id': data["callerid"], 'notes': json.loads(self.request.body)}
             yield db.save(doc)
 
         caller_info = {'doc': doc}
         self.write(json.dumps(caller_info))
         self.finish()
+
+
+@return_future
+def fetch_caller_info(callerid, callback):
+    callback(client.get_by_phone(callerid))
 
 if __name__ == "__main__":
     import logging

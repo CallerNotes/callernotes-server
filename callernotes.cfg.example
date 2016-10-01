@@ -1,4 +1,10 @@
+[callernotes]
+# none, twilio_nextcaller, nextcaller
+caller_id_source: twilio_nextcaller
 [nextcaller]
+username: 123
+password: 123
+[twilio]
 username: 123
 password: 123
 [couch]

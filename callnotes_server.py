@@ -3,23 +3,41 @@ import tornado.web
 from tornado.concurrent import return_future
 
 import sockjs.tornado
-from corduroy import Database, NotFound, relax
+from corduroy import Couch, NotFound, relax
 
 import json
 import ConfigParser, os
+import socket
 
-from pynextcaller.client import NextCallerClient
 
 config = ConfigParser.ConfigParser()
 config.read(['callernotes.cfg', os.path.expanduser('~/.callernotes.cfg')])
 
-username = config.get('nextcaller', 'username')
-password = config.get('nextcaller', 'password')
+try:
+    from pynextcaller.client import NextCallerClient
+except:
+    print 'no nextcaller support'
+    nextcaller_client = None
+else:
+    username = config.get('nextcaller', 'username')
+    password = config.get('nextcaller', 'password')
 
-client = NextCallerClient(username, password, sandbox=False)
+    nextcaller_client = NextCallerClient(username, password, sandbox=False)
+
+# open notes db from couchdb
+couch_url = config.get('couch', 'url')
+
+couch = Couch(couch_url)
+
+try:
+    db = couch.db('notes', create_if_missing=True)
+except socket.error:
+    print 'error: can\'t connect to couch server %s' % couch_url
+    quit()
 
 
-db = Database('notes')
+
+# all connected callernotes clients
 participants = set()
 
 class IndexHandler(tornado.web.RequestHandler):
@@ -125,7 +143,10 @@ class NotesUpdater(tornado.web.RequestHandler):
 
 @return_future
 def fetch_caller_info(callerid, callback):
-    callback(client.get_by_phone(callerid))
+    if nextcaller_client:
+        callback(nextcaller_client.get_by_phone(callerid))
+    else:
+        callback({})
 
 if __name__ == "__main__":
     import logging

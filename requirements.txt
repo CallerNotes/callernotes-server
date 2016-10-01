@@ -1,0 +1,10 @@
+backports-abc==0.4
+backports.ssl-match-hostname==3.5.0.1
+certifi==2016.9.26
+corduroy==0.9.0
+pynextcaller==0.2
+requests==2.11.1
+singledispatch==3.4.0.3
+six==1.10.0
+sockjs-tornado==1.0.3
+tornado==4.4.2

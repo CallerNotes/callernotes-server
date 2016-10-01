@@ -1,0 +1,6 @@
+[nextcaller]
+username: 123
+password: 123
+[couch]
+# http://username:pass@127.0.0.1:5984'
+url: http://pbx.home:5984

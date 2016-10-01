@@ -9,6 +9,8 @@ import json
 import ConfigParser, os
 import socket
 
+from lookup import twilio_nextcaller
+
 
 config = ConfigParser.ConfigParser()
 config.read(['callernotes.cfg', os.path.expanduser('~/.callernotes.cfg')])
@@ -143,10 +145,13 @@ class NotesUpdater(tornado.web.RequestHandler):
 
 @return_future
 def fetch_caller_info(callerid, callback):
-    if nextcaller_client:
+    caller_id_source = config.get('callernotes', 'caller_id_source')
+    if caller_id_source == 'nextcaller':
         callback(nextcaller_client.get_by_phone(callerid))
+    elif caller_id_source == 'twilio_nextcaller':
+        callback(twilio_nextcaller(callerid))
     else:
-        callback({})
+        callback('{}')
 
 if __name__ == "__main__":
     import logging
